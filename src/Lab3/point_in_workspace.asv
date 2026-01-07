@@ -1,0 +1,49 @@
+function result = point_in_workspace(point) 
+    % point is [x, y, z, gamma] where gamma is in degrees.
+    l0 = 96.326;
+    l1 = 130.23;
+    l2 = 124;
+    l3 = 133.4;
+    r = sqrt(point(1)^2 + point(2)^2);
+    z = point(3);
+    g = point(4);
+    if g < -180 || g > 180
+        error('Gamma must be between -180 and 180 degrees');
+    end
+    if r < l3*cosd(g) - l2*sind(g) - l1
+        error('Out of workspace, radius too small.');
+    end
+    if r > l1 + l2 + l3*cosd(g)
+        error('Out of workspace, radius too large.');
+    end
+    if r >= l3*cosd(g) - l2*sind(g) - l1 && ...
+       r <= l3*cosd(g) - (l1+l2)*sind(g) && ...
+       z > l0 + l2*cosd(g) + l3sind(g) + sqrt(l1^2 - (r - l3*cosd(g) + l2*sind(g))^2)
+        error('Out of workspace, position too high for given radius.');
+    end
+    if r >= l3*cosd(g) - (l1+l2)*sind(g) && ...
+       r <= l1 + l2 + l3*cosd(g) && ...
+       z > l0 + l3*sind(g) + sqrt((l1+l2)^2 - (r - l3*cosd(g))^2)
+        error('Out of workspace, position too high for given radius.');
+    end
+    if r >= l3*cosd(g) - l2*sind(g) - l1 && ...
+       r <= l2 - l1 +l3*cosd(g) && ...
+       z < l0 + l3*sind(g) + sqrt((l1 + l2)^2 - (r - l3*cosd(g)))
+        error('Out of workspace, position too low for given radius.');
+    end
+    if r >= l2 - l1 +l3*cosd(g) && ...
+       r <= (l1 - l2)*sind(-g) + l3*cosd(g) && ...
+       z < l0 + l3*sind(g) + sqrt((l1 - l2)^2 - (r - l3*cosd(g))^2)
+        error('Out of workspace, position too low for given radius.');
+    end
+    if r >= (l1 - l2)*sind(-g) + l3*cosd(g) && ...
+       r <= l1 - l2*sind(-g) + l3*cosd(g) && ...
+       z < l0 - l2*cosd(g) - l3*sind(-g) + sqrt(l1^2 - (r - l2*sind(g) - l3*cosd(g))^2)
+        error('Out of workspace, position too low for given radius.');
+    end
+    if r >= l1 - l2*sind(-g) + l3*cosd(g) && ...
+       r <= l1 + l2 + l3*cosd(g) && ...
+       z < l0 + l3*sind(g) - sqrt(l2^2 - (r - l1 - l3*cosd(g))^2)
+        error('Out of workspace, position too low for given radius.');
+    end
+end

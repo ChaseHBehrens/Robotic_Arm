@@ -1,0 +1,57 @@
+IP = ImageProcessor();
+robot = Robot();
+
+I = IP.camera.getImage();
+
+%I = imread('checkerboard_image.jpg');
+
+imagepoints = detectCheckerboardPoints(I,"PartialDetections",false);
+
+%scatter(imagepoints(:,1),imagepoints(:,2));
+
+coordinateMat = pointsToWorld(IP.camera.getCameraInstrinsics, IP.camera.getRotationMatrix, IP.camera.getTranslationVector,[imagepoints(:,1),imagepoints(:,2)]);
+
+coordinateMat = transpose(coordinateMat);
+
+disp(coordinateMat);
+
+imshow(I);
+
+coordinateMat = [coordinateMat(1, :);
+                 coordinateMat(2, :);
+                 zeros(1,40);
+                 ones(1,40)];
+
+TransCamtoArm = [0, 1,  0, 90;
+                 1, 0,  0, -110;
+                 0, 0, -1, 0;
+                 0, 0,  0, 1];
+
+RobotCoords = zeros(4,10);
+
+for i=1:1:40
+    RobotCoords(:,i) = TransCamtoArm * coordinateMat(:,i);
+end
+
+%scatter(RobotCoords(1,:), RobotCoords(2,:));
+
+function X = UtoX (U)
+    X = 173.31845 * sind((0.183334*U) - 95.27282) + 118.39608;
+end
+
+function Y = VtoY (V)
+    Y = (-0.00222024 * (V^2)) + (2.04368 * V) - 349.27748;
+end
+
+
+point = [UtoX(603);VtoY(266);0;1];
+point = TransCamtoArm * point;
+
+robot.writeTime(1);
+robot.writeJoints([0,0,0,0]);
+pause(1);
+robot.writeJoints(robot.ik3001([RobotCoords(1,1),RobotCoords(2,1),30,-90]));
+pause(3);
+robot.writeJoints(robot.ik3001([RobotCoords(1,40),RobotCoords(2,40),30,-90]));
+pause(3);
+robot.writeJoints(robot.ik3001([point(1), point(2),30,-90]));

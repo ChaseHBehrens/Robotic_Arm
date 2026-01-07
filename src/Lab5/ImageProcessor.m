@@ -1,0 +1,297 @@
+classdef ImageProcessor < handle
+    properties 
+        camera;  % The Camera object for this image processor
+        % @@@@@@@@@@@@@@
+        % YOUR CODE
+        I;
+        cameraPoints;
+        coordinateMat;
+        % @@@@@@@@@@@@@@
+        % What other attributes does an ImageProcessor need?
+
+    end
+
+    methods
+        % @@@@@@
+        % README: nvargs
+        % @@@@@@
+        % Throughout this file and the new functions in Robot.m, you will
+        % see "nvargs" a lot. This stands for Name Value ARGuments. These
+        % are much like kwargs in Python.
+
+        % To pass a name-value argument to a function, run
+        % function_name(position_arg1, position_arg2, name=value). Position 
+        % arguments (like all the arguments you've used so far in this
+        % course) always go before name value args. 
+
+        % Name value arguments should always have a default value. This is
+        % defined in the "arguments" field. If you don't pass a certain
+        % name value argument to a function, it gets set as the default
+        % value.
+
+        % You can access the value of a name value argument via
+        % "nvargs.argument_name"
+        function self = ImageProcessor(nvargs)
+            arguments
+                nvargs.debug logical = false;
+            end
+            self.camera = Camera();  % Instantiate a Camera object
+            % @@@@@@@@@@@@@@
+            % YOUR CODE HERE
+            debug(@() preview(self.camera.cam));
+            I = self.camera.getImage();
+            self.cameraPoints = detectCheckerboardPoints(I,"PartialDetections",false);
+            self.coordinateMat = transpose(pointsToWorld(self.camera.getCameraInstrinsics, self.camera.getRotationMatrix, self.camera.getTranslationVector,[self.cameraPoints(:,1),self.cameraPoints(:,2)]));
+            % @@@@@@@@@@@@@@
+            % What else does image processor need to do when it is
+            % instantiated? Are there any values you want to calculate once
+            % to reuse again later?
+        end
+
+        function mask = generate_static_mask(self, nvargs)
+            arguments
+                self ImageProcessor;
+                nvargs.margin double = 32; % TODO: choose a default
+            end
+            %GENERATE_STATIC_MASK produces a binary mask that leaves only
+            %the checkerboard and surrounding area visible
+            % Inputs: 
+            %   margin (optional): a number (what units?) indicating how
+            %                      far from the edge of the checkerboard 
+            %                      to keep in the mask
+            % Outputs:
+            %   mask: a binary mask that blacks out everything except a
+            %         region of interest around the checkerboard
+
+            % If self.debug == true, this function should capture a
+            % picture, apply the mask, and display it
+
+            % Note: poly2mask is a very helpful tool for this part
+            % https://www.mathworks.com/help/images/ref/poly2mask.html
+
+            % Note2: Camera.m offers a method for finding checkerboard
+            % points. This includes the corners, which may be helpful...
+            U = [self.cameraPoints(1, 1)-nvargs.margin, self.cameraPoints(4, 1)-(3*nvargs.margin), self.cameraPoints(40, 1)+(3*nvargs.margin), self.cameraPoints(37, 1)+nvargs.margin]; %[63 186 54 190 63];
+            V = [self.cameraPoints(1, 2)-nvargs.margin, self.cameraPoints(4, 2)+(1.5*nvargs.margin), self.cameraPoints(40, 2)+(1.5*nvargs.margin), self.cameraPoints(37, 2)-nvargs.margin]; %[60 60 209 204 60];
+            % disp(cameraPoints);
+            % disp(U);
+            % disp(V);
+            % disp(nvargs.margin);
+            maskingresult = ~poly2mask(U, V, 570, 999);
+            maskingresult = imoverlay(self.camera.getImage, maskingresult, [0, 0, 0]);
+            %imshow(maskingresult);
+            mask = maskingresult;
+        end
+
+        function colormask = ColorMask(self, color, mask)
+            %mask = self.generate_static_mask();
+            % imshow(mask);
+            if color == "green"
+                cm = greenMask(mask);
+            elseif color == "red"
+                cm = redMask(mask);
+            elseif color == "yellow"
+                cm = yellowMask(mask);
+            elseif color == "orange"
+                cm = orangeMask(mask);
+            elseif color == "grey"
+                cm = greyMask(mask);
+            else
+                error('invalid color.')
+            end
+            debug(@() imshow(cm));
+            colormask = cm;
+        end
+
+        function p_robot = image_to_robot(self, uvpos)
+            %IMAGE_TO_ROBOT transforms a point on the image to the
+            %corresponding point in the frame of the robot
+            % Inputs:
+            %   uvpos: a [1x2] matrix representing an image (u, v) 
+            %          coordinate
+            % Outputs:
+            %   p_robot: a [1x2] matrix representing the transformation of
+            %            the input uvpos into the robot's base frame
+
+            % YOUR CODE HERE
+            TransCamtoArm = [0, 1,  0, 90;
+                             1, 0,  0, -110;
+                             0, 0, -1, 0;
+                             0, 0,  0, 1];
+            cam_point = [self.UtoX(uvpos(1,1));self.VtoY(uvpos(1,2));0;1];
+
+            robot_point = TransCamtoArm * cam_point;
+            p_robot = [robot_point(1,1), robot_point(2,1)];
+
+        end
+        function X = UtoX (self, U)
+            X = 173.31845 * sind((0.183334*U) - 95.27282) + 118.39608;
+        end
+        
+        function Y = VtoY (self, V)
+            Y = (-0.00222024 * (V^2)) + (2.04368 * V) - 349.27748;
+        end
+
+        function [uv_centroids , colors] = detect_centroids(self, nvargs)
+            arguments
+                self ImageProcessor;
+                %image matrix;
+                nvargs.min_size = 50;  % choose a value
+            end
+            %DETECT_CENTROIDS detects the centroids of binary blobs of
+            %large enough size
+            % Iputs: 
+            %   Image: an image of the environment that has already been
+            %          masked for the environment and to isolate a single 
+            %          color
+            %   min_size (optional): the minimum size of a blob to consider
+            %                        a ball
+            % Outputs: 
+            %   colors: a [1xn] matrix of strings indicating the color of
+            %           the ball at each detected centroid
+            %   uv_centroids: a [nx2] matrix of coordinates of valid
+            %                 centroids in image coordinates
+
+            % If self.debug == true, this function should display the image
+            % that was passed to it with colored circles on it marking the
+            % balls
+
+            % If self.debug == true, this function should display the image
+            % that was passed to it with each color mask applied
+            % individually (4 figures total for this part).
+          
+            cmat = ["green", "red", "yellow", "orange"]; %, "grey"];
+            BW4All = [];
+            labels = strings();
+            for i = cmat
+                mask = self.generate_static_mask();
+                cm = ColorMask(self, i, mask);
+                bwlMat = bwlabel(cm, 8);
+                
+                blobs = max(bwlMat,[],"all");
+                rc = zeros(blobs,2);
+                j_adjust = 0;
+                for j = 1:1:blobs
+                    if ((nnz(bwlMat == j) < nvargs.min_size) || ((i == "grey") && nnz(bwlMat == j) < 3*nvargs.min_size))
+                        rc(j-j_adjust,:) = [];
+                        j_adjust = j_adjust + 1;
+                    else
+                        [r, c] = find(bwlMat == j);
+                        points = [r c];
+    
+                        centroid = [mean(points(:,2)),mean(points(:,1))];
+                        
+                        rc(j-j_adjust,:) = centroid;
+                        labels(:, end + 1) = i;
+                    end
+                end
+                debug(@() disp(rc));
+                BW4All = [BW4All; rc];
+                % for r = 1:1:size(rc, 2)
+                %     BW4All(end + 1, :) = rc(r, :);
+                %     disp("BW4All-----------------------------");
+                %     disp(BW4All);
+                %     %disp("Trc--------------------------------");
+                %     %disp();
+                % end
+                %labels = [labels; i];
+            end
+            % BW4All(:, [1, 2]) = BW4All(:, [2, 1]);
+            labels = transpose(labels);
+            labels(1, :) = [];
+            debug(@() disp("Centroid List:"));
+            debug(@() disp(BW4All));
+            debug(@() disp(labels));            
+
+            uv_centroids = BW4All;
+            colors = labels;
+
+            % Hint: bwlabel will be very helpful in this function
+            % https://www.mathworks.com/help/images/ref/bwlabel.html
+
+            % Hint: regionprops will also be very helpful
+            % https://www.mathworks.com/help/images/ref/regionprops.html
+
+        end
+
+        % function colorCentroids = detectCentroidColor (self, color, image, nvargs)
+        %     arguments
+        %         self ImageProcessor;
+        %         image matrix;
+        %         nvargs.min_size int = 10000000;  % chooose a value
+        %     end
+        % 
+        % 
+        %     colorCentroids = [];
+        % 
+        % end
+
+        function ts_centroids = correct_centroids(self, centroids, nvargs)
+            arguments
+                self ImageProcessor;
+                centroids double;
+                nvargs.ball_z = 10;  % TODO: Pick a good value
+            end
+            %CORRECT_CENTROIDS transforms image coordinate centroids into
+            %task-space coordinates for the ball
+            % Inputs: 
+            %   centroids: a [nx2] array of centroids in image coordinates
+            %   ball_z (optional): how high the center of the ball is in
+            %                      millimeters
+
+            % YOUR CODE HERE
+
+            % Hint: similar triangles
+
+            % Hint2: imageToWorld will be helpful here
+            
+            % Constants
+            r = 11.5;
+            Xc = 52.832;
+            Yc = 107.4958;
+            Ztrans = 307.8564;
+            Ytrans = 10.5894;
+            theta = 54.466;
+
+            % Hypotenuse of camera vision at center of camera
+            h = Ztrans - Ytrans/tand(theta);
+
+            % Camera location relative to checkerboard
+            Xcam = Xc + h*cosd(theta);
+            Ycam = Yc;
+            Zcam = h*sind(theta);
+            
+            board_centroids = zeros(size(centroids,1),2);
+            xy_centroids = zeros(size(centroids,1),2);
+            for i = 1:1:size(centroids,1)
+                robot_centroid = self.image_to_robot(centroids(i,:));
+                disp("Robot Centroid:");
+                disp(robot_centroid);
+                board_centroids(i,1) = robot_centroid(1,2) + 110;
+                board_centroids(i,2) = robot_centroid(1,1) - 90;
+
+                xy_centroids(i,1) = (board_centroids(i,2)*(1 - r/Zcam) - (Ycam*r)/Zcam) + 110;
+                xy_centroids(i,2) = (board_centroids(i,1)*(1 - r/Zcam) - (Xcam*r)/Zcam) - 90;
+            end
+            disp("Board Centroids:");
+            disp(board_centroids);
+
+            z_centroids = nvargs.ball_z*ones(size(centroids,1),1);
+            ts_centroids = [xy_centroids z_centroids];
+        end
+
+        % @@@@@@@@@@@@@@
+        % YOUR CODE HERE
+        % @@@@@@@@@@@@@@
+        % Write a function that acquires an image, returns the
+        % coordinates of the balls in the task space of the robot. Satisfy
+        % the following requiremetns.
+        
+        %DETECT_BALLS finds the task space coordinates of all balls on the
+        %checkerboard
+        % Outputs:
+        %   ts_coords: the task space coordinates of all balls in the
+        %              workspace
+    end
+
+end

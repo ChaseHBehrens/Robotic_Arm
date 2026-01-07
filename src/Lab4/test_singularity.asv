@@ -1,0 +1,32 @@
+% Move your robot to a point where Y=0, X > 150 and Z > 150
+
+p0 = [0 200 200 0];
+p1 = [0 -200 200 0];
+t0 = 0;
+t1 = 3;
+
+coeff_mat = zeros(4,6);
+
+for i = 1:1:4
+    coeff_mat(i,:) = TrajGenerator.quintic_traj([p0(i);p1(i);0;0;0;0;],t0,t1);
+end
+
+% Generate a trajectory that will move your robot in a straight line from
+% your current (X, Y, Z) to the point (X, -Y, Z)
+
+%% Execute the trajectory
+travelTime = 100000000;
+tic;
+while toc < travelTime
+    % Evaluate your trajectory, and send your robot to its next setpoint
+    next_point = TrajGenerator.eval_traj(coeff_mat,toc);
+    next_joints = robot.ik3001(next_point);
+    robot.writeJoints(next_joints);
+
+    % Record the joint position of your robot
+    
+
+    % Record the determinant of the Jacobian
+
+    % Test if your robot is too close to a singularity, and stop if it is
+end

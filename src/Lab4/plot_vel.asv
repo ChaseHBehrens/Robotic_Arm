@@ -1,0 +1,118 @@
+% We're intentionally leaving this one a bit open ended to prepare you 
+% for next week.
+
+robot = Robot();
+travel_time = 1;
+increment = 0.01;
+
+% Home Position
+p0 = [281.4 0 224.326 0];
+%p0 = [100 200 250 0];
+p0_ik = robot.ik3001(p0);
+robot.writeTime(1);
+robot.writeJoints(p0_ik);
+pause(2);
+
+% Singularity testing
+%p_singularity = [100 -200 250 0];
+
+% Define Triangle Points
+p1 = [125 0 155 -45];
+p2 = [225 0 155 -45];
+p3 = [175 0 65 -45];
+
+time_mat = linspace(increment,travel_time,travel_time/increment);
+robot.writeTime(increment);
+
+% Create Quintic Coefficient Matrices
+coeff_mat_01 = zeros(4,6);
+coeff_mat_12 = zeros(4,6);
+coeff_mat_23 = zeros(4,6);
+coeff_mat_31 = zeros(4,6);
+
+%coeff_singularity = zeros(4,6);
+for i = 1:1:4
+    coeff_mat_01(i,:) = TrajGenerator.quintic_traj([p0(i);p1(i);0;0;0;0;],0,travel_time);
+    coeff_mat_12(i,:) = TrajGenerator.quintic_traj([p1(i);p2(i);0;0;0;0;],0,travel_time);
+    coeff_mat_23(i,:) = TrajGenerator.quintic_traj([p2(i);p3(i);0;0;0;0;],0,travel_time);
+    coeff_mat_31(i,:) = TrajGenerator.quintic_traj([p3(i);p1(i);0;0;0;0;],0,travel_time);
+    
+    %coeff_singularity(i,:) = TrajGenerator.quintic_traj([p0(i);p_singularity(i);0;0;0;0;],0,travel_time);
+end
+
+% Create Points and Velocity Profile Matrices
+points = zeros(3*size(time_mat,2),4);
+points_exp = zeros(3*size(time_mat,2),4);
+profile = zeros(6,3*size(time_mat,2));
+profile_exp = zeros(6,3*size(time_mat,2));
+
+% Robot Movement and Tracking
+for i = 1:1:4
+    for j = 1:1:size(time_mat,2)
+        acc = 0;
+        if (i == 1)
+            acc = j;
+            points_exp(acc,:) = TrajGenerator.eval_traj(coeff_mat_01,time_mat(j));
+        elseif (i == 2)
+            acc = j;
+            points_exp(acc,:) = TrajGenerator.eval_traj(coeff_mat_12,time_mat(j));
+        elseif (i == 3)
+            acc = j+size(time_mat,2);
+            points_exp(acc,:) = TrajGenerator.eval_traj(coeff_mat_23,time_mat(j));
+        elseif (i == 4)
+            acc = j+2*size(time_mat,2);
+            points_exp(acc,:) = TrajGenerator.eval_traj(coeff_mat_31,time_mat(j));
+        end
+        jointReadings = robot.getJointsPositionReadings();
+        posReadings = robot.fk3001(jointReadings);
+        points(acc,1:3) = transpose(posReadings(1:3,4));
+
+        velReadings = robot.getJointsVelocityReadings();
+        profile(:,acc) = robot.dk3001(posReadings,velReadings);
+        profile_exp(:,acc) = robot.dk3001(robot.ik3001(points_exp(acc,:)),velReadings);
+
+        robot.writeJoints(robot.ik3001([points_exp(acc,:)]));
+        pause(increment);
+    end
+end
+
+% scatter3(points(:,1),points(:,2),points(:,3));
+% scatter3(profile(1,:),profile(2,:),profile(3,:));
+
+% disp("Points");
+% disp(points(:,1));
+% disp("Ponits EXP");
+% disp(points_exp(:,1:3));
+% disp("Profile");
+% disp(profile(1:3,:));
+% disp("Profile EXP");
+% disp(profile_exp(1:3,:));
+
+t_axis = 0:increment:((3*travel_time)-increment);
+
+subplot(2,1,1);
+plot(t_axis,points(:,1),'r');
+hold on;
+plot(t_axis,points_exp(:,1),'--r');
+plot(t_axis,points(:,2),'g');
+plot(t_axis,points_exp(:,2),'--g');
+plot(t_axis,points(:,3),'b');
+plot(t_axis,points_exp(:,3),'--b');
+hold off;
+title('Position vs Time');
+xlabel('Time in Seconds');
+ylabel('Position in mm');
+legend('Actual X', 'Expected X', 'Actual Y', 'Expected Y', 'Actual Z', 'Expected Z')
+
+subplot(2,1,2);
+plot(t_axis,profile(1,:),'r');
+hold on;
+plot(t_axis,profile_exp(1,:),'--r');
+plot(t_axis,profile(2,:),'g');
+plot(t_axis,profile_exp(2,:),'--g');
+plot(t_axis,profile(3,:),'b');
+plot(t_axis,profile_exp(3,:),'--b');
+hold off;
+title('Velocity vs Time');
+xlabel('Time in Seconds');
+ylabel('Velocity in mm/s');
