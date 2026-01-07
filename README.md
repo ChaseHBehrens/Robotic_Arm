@@ -9,6 +9,6 @@ while the rest have their z-axes pointing out of the page.
 
 <img width="1004" height="700" alt="image" src="https://github.com/user-attachments/assets/dd168f3d-2dd8-4b3d-b413-905da02b832d" />
 
-![Video Project 1](https://github.com/user-attachments/assets/3f25c909-88d9-4c06-b1c7-1851f837b04c)
+![robot_arm (1)](https://github.com/user-attachments/assets/f6f6538c-05fa-4617-8cc6-4a90e09f14b9)
 
-More detail about the implimentation can be found in the attached report.
+More detail about the implementation can be found in the attached report. There is also a full length video demonstrating the arms capabilities.
