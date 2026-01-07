@@ -8,3 +8,7 @@ The arm is controlled by four DYNAMIXEL servo motors; the first one has its z-ax
 while the rest have their z-axes pointing out of the page.
 
 <img width="1004" height="700" alt="image" src="https://github.com/user-attachments/assets/dd168f3d-2dd8-4b3d-b413-905da02b832d" />
+
+<img width="381" height="422" alt="image" src="https://github.com/user-attachments/assets/7831969d-96e7-464d-9fd3-b55b3025b9b0" />
+
+More detail about the implimentation can be found in the attached report.
